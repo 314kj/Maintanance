@@ -99,7 +99,23 @@
             document.getElementById('repairTopic').innerHTML = '<option value="" selected disabled>ไม่สามารถโหลดหัวข้อได้</option>';
         });
 }
-        document.getElementById('fileInput').addEventListener('change', (event) => { /* ... โค้ดส่วนนี้เหมือนเดิม ... */ });
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+    imageFile = event.target.files[0];
+    const preview = document.getElementById('preview');
+    if (imageFile) {
+        const reader = new FileReader();
+        reader.onload = e => { 
+            preview.src = e.target.result;
+            preview.style.display = 'block'; // ทำให้รูปแสดงผล
+        }
+        reader.readAsDataURL(imageFile);
+        document.querySelector('.upload-text').style.display = 'none';
+    } else {
+        preview.src = '';
+        preview.style.display = 'none'; // ซ่อนกรอบรูปถ้าไม่มีรูป
+        document.querySelector('.upload-text').style.display = 'block';
+    }
+});
 
         document.getElementById('repairForm').addEventListener('submit', async (e) => {
             e.preventDefault();
