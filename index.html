@@ -80,7 +80,25 @@
             fetchRepairTopics();
         }
 
-        function fetchRepairTopics() { /* ... โค้ดส่วนนี้เหมือนเดิม ... */ }
+       function fetchRepairTopics() {
+    fetch(`${GAS_URL}?action=get_topics`)
+        .then(response => response.json())
+        .then(result => {
+            const topicSelect = document.getElementById('repairTopic');
+            topicSelect.innerHTML = '<option value="" selected disabled>กรุณาเลือกหัวข้อซ่อม...</option>';
+
+            if (result.status === 'success' && result.data) {
+                result.data.forEach(topic => {
+                    const option = new Option(topic, topic);
+                    topicSelect.add(option);
+                });
+            }
+        })
+        .catch(err => {
+            console.error("Error fetching topics:", err);
+            document.getElementById('repairTopic').innerHTML = '<option value="" selected disabled>ไม่สามารถโหลดหัวข้อได้</option>';
+        });
+}
         document.getElementById('fileInput').addEventListener('change', (event) => { /* ... โค้ดส่วนนี้เหมือนเดิม ... */ });
 
         document.getElementById('repairForm').addEventListener('submit', async (e) => {
