@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ประวัติการแจ้งซ่อม</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f0f4f7; }
+        .card { margin-bottom: 1rem; border: 1px solid #e0e0e0; border-radius: 0.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .status-badge { font-size: 0.8rem; padding: 0.3em 0.6em; border-radius: 1rem; }
+        .status-green { background-color: #d1e7dd; color: #0f5132; }
+        .status-blue { background-color: #cfe2ff; color: #084298; }
+        .status-yellow { background-color: #fff3cd; color: #664d03; }
+        .status-gray { background-color: #e9ecef; color: #495057; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h4 class="mb-4">ประวัติการแจ้งซ่อม</h4>
+        <div id="history-container">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2 text-muted">กำลังโหลดข้อมูล...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script>
+        // --- ❗ การตั้งค่า - กรุณาใส่ข้อมูลของคุณ ---
+        const LIFF_ID = "YOUR_HISTORY_LIFF_ID"; // ❗ ใส่ LIFF ID ของ "หน้าประวัติ"
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbyIHd5uxoQRWEDWLwYZFbzOoIPvIDsEKes2QiClzlzjr6jhtWzn-LiCC9BjGAZVLcA/exec";
+        // -----------------------------------------
+
+        document.addEventListener('DOMContentLoaded', () => {
+            liff.init({ liffId: LIFF_ID })
+                .then(initializeApp)
+                .catch(err => { console.error("LIFF Init Error:", err); alert("LIFF เกิดข้อผิดพลาด"); });
+        });
+
+        function initializeApp() {
+            if (!liff.isLoggedIn()) {
+                liff.login();
+                return;
+            }
+            liff.getProfile().then(profile => {
+                fetchHistory(profile.userId);
+            });
+        }
+
+        function fetchHistory(userId) {
+            const url = `${GAS_URL}?action=get_history&userId=${userId}`;
+            fetch(url)
+                .then(response => response.json())
+                .then(result => {
+                    const container = document.getElementById('history-container');
+                    container.innerHTML = ''; // เคลียร์ข้อความ "Loading..."
+
+                    if (result.status === 'success' && result.data && result.data.length > 0) {
+                        result.data.forEach(item => {
+                            container.appendChild(createHistoryCard(item));
+                        });
+                    } else {
+                        container.innerHTML = '<p class="text-center text-muted mt-5">ไม่พบประวัติการแจ้งซ่อม</p>';
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('history-container').innerHTML = '<p class="text-center text-danger mt-5">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>';
+                    console.error("Fetch History Error:", err);
+                });
+        }
+
+        function createHistoryCard(item) {
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            const cardBody = document.createElement('div');
+            cardBody.className = 'card-body';
+            
+            const date = new Date(item.timestamp).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+            const statusColor = getStatusColor(item.status);
+
+            cardBody.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="card-title mb-1">${item.topic || 'ไม่ระบุหัวข้อ'}</h6>
+                        <small class="text-muted">${item.refId || ''}</small>
+                    </div>
+                    <span class="status-badge ${statusColor}">${item.status}</span>
+                </div>
+                <p class="card-text mt-2 mb-0"><small class="text-muted">แจ้งเมื่อ: ${date}</small></p>
+            `;
+            card.appendChild(cardBody);
+            return card;
+        }
+        
+        function getStatusColor(status) {
+            if (status.includes('ชำระเงินแล้ว')) return 'status-green';
+            if (status.includes('ปิดงาน')) return 'status-gray';
+            if (status.includes('รอชำระเงิน')) return 'status-yellow';
+            return 'status-blue'; // รอการติดต่อ
+        }
+    </script>
+</body>
+</html>

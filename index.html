@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ฟอร์มแจ้งซ่อม</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; background-color: #f8f9fa; }
+        .container { max-width: 600px; }
+        .btn-primary { background-color: #00B900; border-color: #00B900; }
+        .spinner-border { display: none; }
+        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; cursor: pointer; position: relative; }
+        #preview { max-width: 100%; max-height: 200px; margin-top: 10px; }
+        .upload-text { color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h3 class="mb-4">📝 ฟอร์มแจ้งซ่อม</h3>
+        <form id="repairForm">
+            <div class="mb-3">
+                <label for="displayName" class="form-label">ชื่อผู้แจ้ง (จาก LINE)</label>
+                <input type="text" class="form-control" id="displayName" readonly>
+            </div>
+
+            <div class="mb-3">
+                <label for="repairTopic" class="form-label">หัวข้อการแจ้งซ่อม <span class="text-danger">*</span></label>
+                <select class="form-select" id="repairTopic" required>
+                    <option value="" selected disabled>กำลังโหลดหัวข้อ...</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="problemDetail" class="form-label">รายละเอียดเพิ่มเติม</label>
+                <textarea class="form-control" id="problemDetail" rows="4"></textarea>
+            </div>
+
+            <div class="mb-3">
+                 <label class="form-label">แนบรูปภาพ (ถ้ามี)</label>
+                 <div class="upload-area" onclick="document.getElementById('fileInput').click();">
+                     <p class="upload-text">คลิกเพื่อเลือกรูปภาพ</p>
+                     <img id="preview" src="" alt="Image preview"/>
+                 </div>
+                 <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center" disabled>
+                 <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                 <span id="submit-text">ส่งข้อมูล</span>
+            </button>
+        </form>
+    </div>
+
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script>
+        // --- ❗ การตั้งค่า - กรุณาใส่ข้อมูลของคุณ ---
+        const LIFF_ID = "YOUR_FORM_LIFF_ID"; // ❗ ใส่ LIFF ID ของ "หน้าฟอร์มแจ้งซ่อม"
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbyIHd5uxoQRWEDWLwYZFbzOoIPvIDsEKes2QiClzlzjr6jhtWzn-LiCC9BjGAZVLcA/exec";
+        const IMGUR_CLIENT_ID = "YOUR_IMGUR_CLIENT_ID"; // ❗ ใส่ Client ID จาก Imgur (ถ้าไม่ใช้ ให้เว้นว่าง)
+        // -----------------------------------------
+
+        let myProfile = {};
+        let imageFile = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            liff.init({ liffId: LIFF_ID })
+                .then(initializeApp)
+                .catch(err => { console.error("LIFF Init Error:", err); alert("LIFF เกิดข้อผิดพลาด") });
+        });
+
+        function initializeApp() {
+            if (!liff.isLoggedIn()) {
+                liff.login();
+                return;
+            }
+            liff.getProfile().then(profile => {
+                myProfile = profile;
+                document.getElementById('displayName').value = profile.displayName;
+                document.querySelector('button[type="submit"]').disabled = false;
+            });
+            fetchRepairTopics();
+        }
+
+        function fetchRepairTopics() {
+            fetch(`${GAS_URL}?action=get_topics`)
+                .then(response => response.json())
+                .then(result => {
+                    const topicSelect = document.getElementById('repairTopic');
+                    topicSelect.innerHTML = '<option value="" selected disabled>กรุณาเลือก...</option>'; // Clear loading text
+                    if (result.status === 'success' && result.data) {
+                        result.data.forEach(topic => {
+                            const option = new Option(topic, topic);
+                            topicSelect.add(option);
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.error("Error fetching topics:", err);
+                    document.getElementById('repairTopic').innerHTML = '<option value="" selected disabled>ไม่สามารถโหลดหัวข้อได้</option>';
+                });
+        }
+
+        document.getElementById('fileInput').addEventListener('change', (event) => {
+            imageFile = event.target.files[0];
+            const preview = document.getElementById('preview');
+            if (imageFile) {
+                const reader = new FileReader();
+                reader.onload = e => { preview.src = e.target.result; }
+                reader.readAsDataURL(imageFile);
+                document.querySelector('.upload-text').style.display = 'none';
+            } else {
+                preview.src = '';
+                document.querySelector('.upload-text').style.display = 'block';
+            }
+        });
+
+        document.getElementById('repairForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            setLoading(true);
+
+            let photoUrl = "";
+            if (imageFile && IMGUR_CLIENT_ID) {
+                photoUrl = await uploadToImgur(imageFile);
+                if (!photoUrl) {
+                    alert('ไม่สามารถอัปโหลดรูปภาพได้ กรุณาลองใหม่');
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            const dataToSend = {
+                userId: myProfile.userId,
+                displayName: myProfile.displayName,
+                repairTopic: document.getElementById('repairTopic').value,
+                problemDetail: document.getElementById('problemDetail').value,
+                photoUrl: photoUrl
+            };
+
+            fetch(GAS_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: JSON.stringify(dataToSend)
+            })
+            .then(() => {
+                alert('แจ้งซ่อมสำเร็จ!');
+                liff.closeWindow();
+            })
+            .catch(error => {
+                alert('เกิดข้อผิดพลาดในการส่งข้อมูล');
+                console.error('Error:', error);
+                setLoading(false);
+            });
+        });
+
+        async function uploadToImgur(file) {
+            const formData = new FormData();
+            formData.append('image', file);
+            try {
+                const response = await fetch('https://api.imgur.com/3/image', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Client-ID ${IMGUR_CLIENT_ID}` },
+                    body: formData
+                });
+                if (!response.ok) throw new Error(`Imgur upload failed: ${response.statusText}`);
+                const result = await response.json();
+                return result.data.link;
+            } catch (error) {
+                console.error('Imgur Upload Error:', error);
+                return null;
+            }
+        }
+
+        function setLoading(isLoading) {
+             document.querySelector('.spinner-border').style.display = isLoading ? 'inline-block' : 'none';
+             document.getElementById('submit-text').textContent = isLoading ? 'กำลังส่ง...' : 'ส่งข้อมูล';
+             document.querySelector('button[type="submit"]').disabled = isLoading;
+        }
+    </script>
+</body>
+</html>
