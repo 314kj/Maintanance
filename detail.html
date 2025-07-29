@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายละเอียดการแจ้งซ่อม</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 600px;
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
+        .detail-item {
+            margin-bottom: 15px;
+        }
+        .detail-item strong {
+            display: block;
+            margin-bottom: 5px;
+            color: #343a40;
+        }
+        .detail-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin-top: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
+        .header-bar {
+            background-color: #007bff; /* สีน้ำเงินของ LINE */
+            color: white;
+            padding: 15px 0;
+            text-align: center;
+            margin-bottom: 20px;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+        .back-button {
+            position: absolute;
+            left: 15px;
+            top: 15px;
+            color: white;
+            font-size: 1.5rem;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header-bar">
+        <a href="history.html" class="back-button">&lt;</a>
+        <h3>รายละเอียดการแจ้งซ่อม</h3>
+    </div>
+
+    <div class="container">
+        <div id="loadingMessage" class="text-center text-muted">กำลังโหลดข้อมูล...</div>
+        <div id="errorMessage" class="alert alert-danger d-none"></div>
+        
+        <div id="detailContent" class="d-none">
+            <div class="detail-item">
+                <strong>เลขที่อ้างอิง:</strong> <span id="detailRefId"></span>
+            </div>
+            <div class="detail-item">
+                <strong>หัวข้อ:</strong> <span id="detailTopic"></span>
+            </div>
+            <div class="detail-item">
+                <strong>รายละเอียดปัญหา:</strong> <span id="detailProblemDetail"></span>
+            </div>
+            <div class="detail-item">
+                <strong>สถานะ:</strong> <span id="detailStatus"></span>
+            </div>
+            <div class="detail-item">
+                <strong>แจ้งเมื่อ:</strong> <span id="detailTimestamp"></span>
+            </div>
+            <div class="detail-item">
+                <strong>ผู้แจ้ง:</strong> <span id="detailDisplayName"></span>
+            </div>
+            <div class="detail-item" id="photoSection">
+                <strong>รูปภาพ:</strong><br>
+                <img id="detailPhoto" class="detail-image" alt="รูปภาพประกอบ">
+                <p id="noPhotoMessage" class="text-muted mt-2 d-none">ไม่มีรูปภาพประกอบ</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.min.js"></script>
+
+    <script>
+        // กำหนด URL ของ Google Apps Script Web App ของคุณ
+        // **สำคัญ:** แทนที่ด้วย URL จริงที่คุณได้จากการ Deploy Apps Script
+        const APP_SCRIPT_URL = "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL"; 
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const refId = urlParams.get('refId');
+
+            const loadingMessage = document.getElementById('loadingMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            const detailContent = document.getElementById('detailContent');
+
+            if (!refId) {
+                errorMessage.textContent = 'ไม่พบเลขที่อ้างอิงการแจ้งซ่อม';
+                errorMessage.classList.remove('d-none');
+                loadingMessage.classList.add('d-none');
+                return;
+            }
+
+            fetchDetail(refId);
+
+            async function fetchDetail(refId) {
+                try {
+                    const response = await fetch(`${APP_SCRIPT_URL}?action=get_detail&refId=${refId}`);
+                    const result = await response.json();
+
+                    loadingMessage.classList.add('d-none'); // ซ่อนข้อความโหลด
+
+                    if (result.status === 'success') {
+                        const data = result.data;
+                        if (data) {
+                            document.getElementById('detailRefId').textContent = data.refId;
+                            document.getElementById('detailTopic').textContent = data.repairTopic;
+                            document.getElementById('detailProblemDetail').textContent = data.problemDetail;
+                            document.getElementById('detailStatus').textContent = data.status;
+                            document.getElementById('detailTimestamp').textContent = formatDate(data.timestamp);
+                            document.getElementById('detailDisplayName').textContent = data.displayName;
+
+                            const detailPhoto = document.getElementById('detailPhoto');
+                            const noPhotoMessage = document.getElementById('noPhotoMessage');
+                            if (data.photoUrl) {
+                                detailPhoto.src = data.photoUrl;
+                                detailPhoto.classList.remove('d-none');
+                                noPhotoMessage.classList.add('d-none');
+                            } else {
+                                detailPhoto.classList.add('d-none');
+                                noPhotoMessage.classList.remove('d-none');
+                            }
+                            detailContent.classList.remove('d-none'); // แสดงเนื้อหา
+                        } else {
+                            errorMessage.textContent = 'ไม่พบข้อมูลการแจ้งซ่อมสำหรับเลขที่อ้างอิงนี้';
+                            errorMessage.classList.remove('d-none');
+                        }
+                    } else {
+                        errorMessage.textContent = `เกิดข้อผิดพลาด: ${result.message}`;
+                        errorMessage.classList.remove('d-none');
+                    }
+                } catch (error) {
+                    loadingMessage.classList.add('d-none');
+                    errorMessage.textContent = `ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้: ${error.message}`;
+                    errorMessage.classList.remove('d-none');
+                }
+            }
+
+            // ฟังก์ชันสำหรับจัดรูปแบบวันที่ (คัดลอกมาจาก history.html ของคุณ)
+            function formatDate(isoString) {
+                const date = new Date(isoString);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+                const year = String(date.getFullYear()).slice(2); // Get last two digits of year
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${day}/${month}/${year} ${hours}:${minutes}`;
+            }
+        });
+    </script>
+</body>
+</html>
